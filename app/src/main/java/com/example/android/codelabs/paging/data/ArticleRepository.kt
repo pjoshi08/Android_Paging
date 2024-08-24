@@ -23,20 +23,29 @@ import java.time.LocalDateTime
 private val firstArticleCreatedTime = LocalDateTime.now()
 
 /**
+ * Other reasons we should explore paging through the articles include the following:
+ *
+ * 1. The ViewModel keeps all items loaded in memory in the items StateFlow. This is a major concern
+ * when the dataset gets really large as it can impact performance.
+ * 2. Updating one or more articles in the list when they've changed becomes more expensive the
+ * bigger the list of articles gets.
+ *
+ * When implementing pagination, we want to be confident the following conditions are met:
+ *
+ * 1. Properly handling requests for the data from the UI, ensuring that multiple requests
+ * aren't triggered at the same time for the same query.
+ * 2. Keeping a manageable amount of retrieved data in memory.
+ * 3. Triggering requests to fetch more data to supplement the data we've already fetched.
+ *
+ * We can achieve all this with a PagingSource. A [PagingSource] defines the source of data by
+ * specifying how to retrieve data in incremental chunks. The PagingData object then pulls data
+ * from the PagingSource in response to loading hints that are generated as the user scrolls in a RecyclerView.
+ */
+
+/**
  * Repository class that mimics fetching [Article] instances from an asynchronous source.
  */
 class ArticleRepository {
-    /**
-     * Exposed singular stream of [Article] instances
-     */
-    val articleStream: Flow<List<Article>> = flowOf(
-        (0..500).map { number ->
-            Article(
-                id = number,
-                title = "Article $number",
-                description = "This describes article $number",
-                created = firstArticleCreatedTime.minusDays(number.toLong())
-            )
-        }
-    )
+
+    fun articlePagingSource() = ArticlePagingSource()
 }

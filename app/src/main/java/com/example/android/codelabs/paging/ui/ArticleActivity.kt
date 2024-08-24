@@ -19,10 +19,12 @@ package com.example.android.codelabs.paging.ui
 import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.paging.LoadState
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -48,6 +50,20 @@ class ArticleActivity : AppCompatActivity() {
 
         binding.bindAdapter(articleAdapter = articleAdapter)
 
+        // CombinedLoadStates instances describe the loading status of all components
+        // in the Paging library that load data. In our case, we're interested in the
+        // LoadState of just the ArticlePagingSource, so we will be working primarily
+        // with the LoadStates type in the CombinedLoadStates.source field. You can access
+        // CombinedLoadStates through the PagingDataAdapter via PagingDataAdapter.loadStateFlow.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                articleAdapter.loadStateFlow.collect {
+                    binding.prependProgress.isVisible = it.source.prepend is LoadState.Loading
+                    binding.appendProgress.isVisible = it.source.append is LoadState.Loading
+                }
+            }
+        }
+
         // Collect from the Article Flow in the ViewModel, and submit it to the
         // ListAdapter.
         lifecycleScope.launch {
@@ -55,7 +71,7 @@ class ArticleActivity : AppCompatActivity() {
             // but still visible on the screen, for example in a multi window app
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 items.collect {
-                    articleAdapter.submitList(it)
+                    articleAdapter.submitData(it)
                 }
             }
         }
