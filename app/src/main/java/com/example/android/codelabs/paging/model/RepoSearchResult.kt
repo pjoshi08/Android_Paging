@@ -21,6 +21,8 @@ import java.lang.Exception
 /**
  * RepoSearchResult from a search, which contains List<Repo> holding query data,
  * and a String of network error state.
+ *
+ * Part of starter code. Not needed as Paging Library has LoadResult with Page and Error states.
  */
 sealed class RepoSearchResult {
     data class Success(val data: List<Repo>) : RepoSearchResult()

@@ -17,6 +17,9 @@
 package com.example.android.codelabs.paging.data
 
 import android.util.Log
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
 import com.example.android.codelabs.paging.api.GithubService
 import com.example.android.codelabs.paging.api.IN_QUALIFIER
 import com.example.android.codelabs.paging.model.Repo
@@ -26,15 +29,12 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import retrofit2.HttpException
 import java.io.IOException
 
-// GitHub page API is 1 based: https://developer.github.com/v3/#pagination
-private const val GITHUB_STARTING_PAGE_INDEX = 1
-
 /**
  * Repository class that works with local and remote data sources.
  */
 class GithubRepository(private val service: GithubService) {
 
-    // keep the list of all results received
+    /*// keep the list of all results received
     private val inMemoryCache = mutableListOf<Repo>()
 
     // shared flow of results, which allows us to broadcast updates so
@@ -45,13 +45,23 @@ class GithubRepository(private val service: GithubService) {
     private var lastRequestedPage = GITHUB_STARTING_PAGE_INDEX
 
     // avoid triggering multiple requests in the same time
-    private var isRequestInProgress = false
+    private var isRequestInProgress = false*/
 
     /**
      * Search repositories whose names match the query, exposed as a stream of data that will emit
      * every time we get more data from the network.
      */
-    suspend fun getSearchResultStream(query: String): Flow<RepoSearchResult> {
+    fun getSearchResultStream(query: String): Flow<PagingData<Repo>> {
+        return Pager(
+            config = PagingConfig(
+                pageSize = NETWORK_PAGE_SIZE,  // Mandatory field
+                enablePlaceholders = false
+            ),
+            pagingSourceFactory = { GithubPagingSource(service, query) }
+        ).flow
+    }
+
+    /*suspend fun getSearchResultStream(query: String): Flow<RepoSearchResult> {
         Log.d("GithubRepository", "New query: $query")
         lastRequestedPage = 1
         inMemoryCache.clear()
@@ -102,7 +112,7 @@ class GithubRepository(private val service: GithubService) {
             it.name.contains(query, true) ||
                     (it.description != null && it.description.contains(query, true))
         }.sortedWith(compareByDescending<Repo> { it.stars }.thenBy { it.name })
-    }
+    }*/
 
     companion object {
         const val NETWORK_PAGE_SIZE = 30
