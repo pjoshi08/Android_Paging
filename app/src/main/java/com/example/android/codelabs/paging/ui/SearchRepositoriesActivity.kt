@@ -51,8 +51,13 @@ class SearchRepositoriesActivity : AppCompatActivity() {
         setContentView(view)
 
         // get the view model
-        val viewModel = ViewModelProvider(this, Injection.provideViewModelFactory(owner = this))
-            .get(SearchRepositoriesViewModel::class.java)
+        val viewModel = ViewModelProvider(
+            this,
+            Injection.provideViewModelFactory(
+                context = this,
+                owner = this
+            )
+        )[SearchRepositoriesViewModel::class.java]
 
         // add dividers between RecyclerView's row items
         val decoration = DividerItemDecoration(this, DividerItemDecoration.VERTICAL)
@@ -76,8 +81,9 @@ class SearchRepositoriesActivity : AppCompatActivity() {
         uiActions: (UiAction) -> Unit
     ) {
         val repoAdapter = ReposAdapter()
+        val header = ReposLoadStateAdapter { repoAdapter.retry() }
         list.adapter = repoAdapter.withLoadStateHeaderAndFooter(
-            header = ReposLoadStateAdapter { repoAdapter.retry() },
+            header = header,
             footer = ReposLoadStateAdapter { repoAdapter.retry() }
         )
 
@@ -86,6 +92,7 @@ class SearchRepositoriesActivity : AppCompatActivity() {
             onQueryChanged = uiActions
         )
         bindList(
+            header = header,
             repoAdapter = repoAdapter,
             uiState = uiState,
             pagingData = pagingData,
@@ -136,6 +143,7 @@ class SearchRepositoriesActivity : AppCompatActivity() {
     }
 
     private fun ActivitySearchRepositoriesBinding.bindList(
+        header: ReposLoadStateAdapter,
         repoAdapter: ReposAdapter,
         uiState: StateFlow<UiState>,
         pagingData: Flow<PagingData<UiModel>>,
@@ -153,9 +161,11 @@ class SearchRepositoriesActivity : AppCompatActivity() {
 
         val notLoading = repoAdapter.loadStateFlow
             // Only emit when REFRESH LoadState for the paging source changes.
-            .distinctUntilChangedBy { it.source.refresh }
+            //.distinctUntilChangedBy { it.source.refresh }
+            .asRemotePresentationState()
             // Only react to cases where REFRESH completes i.e., NotLoading.
-            .map { it.source.refresh is LoadState.NotLoading }
+            //.map { it.source.refresh is LoadState.NotLoading }
+            .map { it == RemotePresentationState.PRESENTED }
 
         val hasNotScrolledForCurrentSearch = uiState
             .map { it.hasNotScrolledForCurrentSearch }
@@ -178,9 +188,10 @@ class SearchRepositoriesActivity : AppCompatActivity() {
             }
         }
 
-        lifecycleScope.launch {
+        /*lifecycleScope.launch {
             repoAdapter.loadStateFlow.collect { loadState ->
-                val isListEmpty = loadState.refresh is LoadState.NotLoading && repoAdapter.itemCount == 0
+                val isListEmpty =
+                    loadState.refresh is LoadState.NotLoading && repoAdapter.itemCount == 0
                 // show empty list
                 emptyList.isVisible = isListEmpty
                 // Only show the list if refresh succeeds.
@@ -203,27 +214,52 @@ class SearchRepositoriesActivity : AppCompatActivity() {
                     ).show()
                 }
             }
+        }*/
+
+        lifecycleScope.launch {
+            repoAdapter.loadStateFlow.collect { loadState ->
+                // Show a retry header if there was an error refreshing, and items were previously
+                // cached OR default to the default prepend state
+                header.loadState = loadState.mediator
+                    ?.refresh
+                    ?.takeIf { it is LoadState.Error && repoAdapter.itemCount > 0 }
+                    ?: loadState.prepend
+
+                val isListEmpty =
+                    loadState.refresh is LoadState.NotLoading && repoAdapter.itemCount == 0
+                // show empty list
+                emptyList.isVisible = isListEmpty
+                // Only show the list if refresh succeeds, either from the local db or the remote.
+                list.isVisible =
+                    loadState.source.refresh is LoadState.NotLoading ||
+                            loadState.mediator?.refresh is LoadState.NotLoading
+                // Show loading spinner during initial load or refresh.
+                progressBar.isVisible = loadState.mediator?.refresh is LoadState.Loading
+                // Show the retry state if initial load or refresh fails.
+                retryButton.isVisible =
+                    loadState.mediator?.refresh is LoadState.Error && repoAdapter.itemCount == 0
+            }
         }
 
 
-    /*uiState
-        .map(UiState::searchResult)
-        .distinctUntilChanged()
-        .observe(this@SearchRepositoriesActivity) { result ->
-            when (result) {
-                is RepoSearchResult.Success -> {
-                    showEmptyList(result.data.isEmpty())
-                    repoAdapter.submitList(result.data)
+        /*uiState
+            .map(UiState::searchResult)
+            .distinctUntilChanged()
+            .observe(this@SearchRepositoriesActivity) { result ->
+                when (result) {
+                    is RepoSearchResult.Success -> {
+                        showEmptyList(result.data.isEmpty())
+                        repoAdapter.submitList(result.data)
+                    }
+                    is RepoSearchResult.Error -> {
+                        Toast.makeText(
+                            this@SearchRepositoriesActivity,
+                            "\uD83D\uDE28 Wooops $result.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
-                is RepoSearchResult.Error -> {
-                    Toast.makeText(
-                        this@SearchRepositoriesActivity,
-                        "\uD83D\uDE28 Wooops $result.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-        }*/
+            }*/
     }
 
     private fun ActivitySearchRepositoriesBinding.showEmptyList(show: Boolean) {
